@@ -3,6 +3,9 @@ mod state;
 use crate::app::App;
 use winit::event_loop::EventLoop;
 
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen::prelude::*;
+
 pub fn run() -> Result<(), winit::error::EventLoopError> {
     #[cfg(not(target_arch = "wasm32"))]
     {

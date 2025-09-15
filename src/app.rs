@@ -1,12 +1,16 @@
 use crate::state::State;
 use std::sync::Arc;
+#[allow(unused_imports)]
 use winit::{
     application::ApplicationHandler,
     event::*,
-    event_loop::ActiveEventLoop,
+    event_loop::{ActiveEventLoop, EventLoop},
     keyboard::{KeyCode, PhysicalKey},
     window::Window,
 };
+
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen::prelude::*;
 
 pub struct App {
     #[cfg(target_arch = "wasm32")]
@@ -28,7 +32,8 @@ impl App {
 
 impl ApplicationHandler<State> for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        let /* mut */ window_attributes = Window::default_attributes();
+        #[allow(unused_mut)]
+        let mut window_attributes = Window::default_attributes();
 
         #[cfg(target_arch = "wasm32")]
         {
@@ -39,7 +44,7 @@ impl ApplicationHandler<State> for App {
 
             let window = wgpu::web_sys::window().unwrap_throw();
             let document = window.document().unwrap_throw();
-            let canvas = document.get_elemend_by_id(CANVAS_ID).unwrap_throw();
+            let canvas = document.get_element_by_id(CANVAS_ID).unwrap_throw();
             let html_canvas_element = canvas.unchecked_into();
             window_attributes = window_attributes.with_canvas(Some(html_canvas_element));
         }
@@ -54,7 +59,7 @@ impl ApplicationHandler<State> for App {
         #[cfg(target_arch = "wasm32")]
         {
             if let Some(proxy) = self.proxy.take() {
-                wasm_bindgen_features::spawn_local(async move {
+                wasm_bindgen_futures::spawn_local(async move {
                     assert!(
                         proxy
                             .send_event(State::new(window).await.expect("Unable to create canvas"))
@@ -65,7 +70,8 @@ impl ApplicationHandler<State> for App {
         }
     }
 
-    fn user_event(&mut self, _event_loop: &ActiveEventLoop, /* mut */ event: State) {
+    #[allow(unused_mut)]
+    fn user_event(&mut self, _event_loop: &ActiveEventLoop, mut event: State) {
         #[cfg(target_arch = "wasm32")]
         {
             event.window.request_redraw();

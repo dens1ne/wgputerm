@@ -1,11 +1,8 @@
 use std::sync::Arc;
 use winit::window::Window;
 
-#[cfg(target_arch = "wasm32")]
-use wasm_bindgen::prelude::*;
-
 pub struct State {
-    window: Arc<Window>,
+    pub window: Arc<Window>,
 }
 
 impl State {
