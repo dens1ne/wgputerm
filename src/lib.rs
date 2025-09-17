@@ -6,7 +6,7 @@ use winit::event_loop::EventLoop;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
-pub fn run() -> Result<(), winit::error::EventLoopError> {
+pub fn run() -> anyhow::Result<()> {
     #[cfg(not(target_arch = "wasm32"))]
     {
         env_logger::init();
