@@ -1,5 +1,32 @@
+use crate::Vertex;
 use std::sync::Arc;
+use wgpu::util::DeviceExt;
 use winit::{event_loop::ActiveEventLoop, keyboard::KeyCode, window::Window};
+
+const VERTICES: &[Vertex] = &[
+    Vertex {
+        position: [-0.0868241, 0.49240386, 0.0],
+        color: [0.5, 0.0, 0.5],
+    },
+    Vertex {
+        position: [-0.49513406, 0.06958647, 0.0],
+        color: [0.5, 0.0, 0.5],
+    },
+    Vertex {
+        position: [-0.21918549, -0.44939706, 0.0],
+        color: [0.5, 0.0, 0.5],
+    },
+    Vertex {
+        position: [0.35966998, -0.3473291, 0.0],
+        color: [0.5, 0.0, 0.5],
+    },
+    Vertex {
+        position: [0.44147372, 0.2347359, 0.0],
+        color: [0.5, 0.0, 0.5],
+    },
+];
+
+const INDICES: &[u16] = &[0, 1, 4, 1, 2, 4, 2, 3, 4];
 
 pub struct State {
     surface: wgpu::Surface<'static>,
@@ -8,8 +35,16 @@ pub struct State {
     config: wgpu::SurfaceConfiguration,
     is_surface_configured: bool,
     render_pipeline: wgpu::RenderPipeline,
-    colored_render_pipeline: wgpu::RenderPipeline,
-    colored: bool,
+
+    vertex_buffer: wgpu::Buffer,
+    index_buffer: wgpu::Buffer,
+    num_indices: u32,
+
+    complex_vertex_buffer: wgpu::Buffer,
+    complex_index_buffer: wgpu::Buffer,
+    complex_num_indices: u32,
+
+    complex: bool,
     pub window: Arc<Window>,
 }
 
@@ -84,7 +119,7 @@ impl State {
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: Some("vs_main"),
-                buffers: &[],
+                buffers: &[Vertex::desc()],
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             },
             fragment: Some(wgpu::FragmentState {
@@ -116,51 +151,53 @@ impl State {
             cache: None,
         });
 
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("Colored shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("colored.wgsl").into()),
+        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Vertex buffer"),
+            contents: bytemuck::cast_slice(VERTICES),
+            usage: wgpu::BufferUsages::VERTEX,
         });
 
-        let colored_render_pipeline =
-            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                label: Some("Colored render pipeline"),
-                layout: Some(&render_pipeline_layout),
-                vertex: wgpu::VertexState {
-                    module: &shader,
-                    entry_point: Some("vs_main"),
-                    buffers: &[],
-                    compilation_options: wgpu::PipelineCompilationOptions::default(),
-                },
-                fragment: Some(wgpu::FragmentState {
-                    module: &shader,
-                    entry_point: Some("fs_main"),
-                    targets: &[Some(wgpu::ColorTargetState {
-                        format: config.format,
-                        blend: Some(wgpu::BlendState::REPLACE),
-                        write_mask: wgpu::ColorWrites::ALL,
-                    })],
-                    compilation_options: wgpu::PipelineCompilationOptions::default(),
-                }),
-                primitive: wgpu::PrimitiveState {
-                    topology: wgpu::PrimitiveTopology::TriangleList,
-                    strip_index_format: None,
-                    front_face: wgpu::FrontFace::Ccw,
-                    cull_mode: Some(wgpu::Face::Back),
-                    polygon_mode: wgpu::PolygonMode::Fill,
-                    unclipped_depth: false,
-                    conservative: false,
-                },
-                depth_stencil: None,
-                multisample: wgpu::MultisampleState {
-                    count: 1,
-                    mask: !0,
-                    alpha_to_coverage_enabled: false,
-                },
-                multiview: None,
-                cache: None,
-            });
+        let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Index buffer"),
+            contents: bytemuck::cast_slice(INDICES),
+            usage: wgpu::BufferUsages::INDEX,
+        });
 
-        let colored = true;
+        let num_vertices = 50;
+        let angle = std::f32::consts::TAU / num_vertices as f32;
+        let complex_vertices = (0..num_vertices)
+            .map(|i| {
+                let cur_angle = angle * i as f32;
+                Vertex {
+                    position: [cur_angle.cos() * 0.5, -0.5 * cur_angle.sin(), 0.0],
+                    color: [
+                        (1.0 + cur_angle.cos()) / 2.0,
+                        (1.0 + cur_angle.sin()) / 2.0,
+                        1.0,
+                    ],
+                }
+            })
+            .collect::<Vec<_>>();
+
+        let num_traingles = num_vertices - 2;
+        let complex_indices = (1u16..=num_traingles)
+            .into_iter()
+            .flat_map(|i| vec![i + 1, i, 0])
+            .collect::<Vec<_>>();
+        let complex_num_indices = complex_indices.len() as u32;
+
+        let complex_vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Vertex complex buffer"),
+            contents: bytemuck::cast_slice(&complex_vertices),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+        let complex_index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Index complex buffer"),
+            contents: bytemuck::cast_slice(&complex_indices),
+            usage: wgpu::BufferUsages::INDEX,
+        });
+
+        let num_indices = INDICES.len() as u32;
 
         Ok(Self {
             surface,
@@ -169,8 +206,13 @@ impl State {
             config,
             is_surface_configured: false,
             render_pipeline,
-            colored_render_pipeline,
-            colored,
+            vertex_buffer,
+            index_buffer,
+            num_indices,
+            complex_vertex_buffer,
+            complex_index_buffer,
+            complex_num_indices,
+            complex: false,
             window,
         })
     }
@@ -187,7 +229,7 @@ impl State {
     pub fn handle_key(&mut self, event_loop: &ActiveEventLoop, code: KeyCode, is_pressed: bool) {
         match (code, is_pressed) {
             (KeyCode::Escape, true) => event_loop.exit(),
-            (KeyCode::Space, true) => self.colored = !self.colored,
+            (KeyCode::Space, true) => self.complex = !self.complex,
             _ => (),
         }
     }
@@ -233,12 +275,20 @@ impl State {
                 timestamp_writes: None,
             });
 
-            render_pass.set_pipeline(if self.colored {
-                &self.colored_render_pipeline
+            render_pass.set_pipeline(&self.render_pipeline);
+
+            let attributes = if self.complex {
+                (
+                    &self.complex_vertex_buffer,
+                    &self.complex_index_buffer,
+                    self.complex_num_indices,
+                )
             } else {
-                &self.render_pipeline
-            });
-            render_pass.draw(0..3, 0..1);
+                (&self.vertex_buffer, &self.index_buffer, self.num_indices)
+            };
+            render_pass.set_vertex_buffer(0, attributes.0.slice(..));
+            render_pass.set_index_buffer(attributes.1.slice(..), wgpu::IndexFormat::Uint16);
+            render_pass.draw_indexed(0..attributes.2, 0, 0..1);
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));
