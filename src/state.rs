@@ -163,7 +163,7 @@ impl State {
             usage: wgpu::BufferUsages::INDEX,
         });
 
-        let num_vertices = 50;
+        let num_vertices = u16::MAX;
         let angle = std::f32::consts::TAU / num_vertices as f32;
         let complex_vertices = (0..num_vertices)
             .map(|i| {
